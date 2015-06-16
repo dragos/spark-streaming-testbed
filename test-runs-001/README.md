@@ -1,6 +1,25 @@
+# Test runs
+
+__For setup and all other details, look below__
+
+## vanilla Spark 1.4.0, TCP receiver, no congestion strategy
+
+![vanilla Spark 1.4.0, TCP receiver, no congestion strategy](vanilla-1.4.0-7-50000/graph.png)
+
+## streaming back pressure branch, TCP receiver, congestion strategy: ignore
+
+![streaming back pressure branch, TCP receiver, congestion strategy: sampling](streaming-t004-7-50000/graph.png)
+
+## streaming back pressure branch, TCP receiver, congestion strategy: sampling
+
+## streaming back pressure branch, TCP receiver, congestion strategy: pushback
+
+## streaming back pressure branch, reactive receiver
+
 # Setup
 
 The tests were executed on 3 m3.large ubuntu instances:
+
 * 1 instance running the testbed application, providing the stream of data
 * 2 instances running a 2 nodes Spark cluster:
   * node 1: Spark master + Spark slave
@@ -74,23 +93,23 @@ __TODO: fix the script to use the min timestamp__
 
 ```bash
 # extract the intresting lines
-grep $'\t6\t' run.log > execution.log
+grep $'\t7\t' run.log > execution.log
 # find the earliest timestamp
-TODO: find the min timestamp
+BASE_TIME=$(head -1 execution.log | awk '{print $2qq}')
 # shift the time, and keep only the interesting columns
-awk -F '\t' '{print $1-1433331026600"\t"$1-$2"\t"$4;}' execution.log > execution-processed.log
+awk -v baseTime=${BASE_TIME} -F '\t' '{print $1-baseTime"\t"$2-baseTime"\t"$1-$2"\t"$4;}' execution.log > execution-processed.log
 ```
 
 ```bash
 # extract the intresting lines
 grep 'Added input' run.log > memory.log
 # shift the time and normalize the memory numbers (to KB).
-awk -F '[\)\, -]' '{ if ($15 == "MB") { a = $14 * 1024} else {a = $14}; if ($19 == "MB") { b = $18 * 1024 } else { b = $18 }; print $8-1433331026600"\t"a"\t"b;}' memory.log > memory-processed.log
+awk -v baseTime=${BASE_TIME} -F '[\)\, -]' '{ if ($15 == "MB") { a = $14 * 1024} else {a = $14}; if ($19 == "MB") { b = $18 * 1024 } else { b = $18 }; print $8-baseTime"\t"a"\t"b;}' memory.log > memory-processed.log
 ```
 
 ```bash
 grep 'Received update' SPARK_HOME/work/app-xxxxxxxxxxxx-000x/x/stdout > feedback.log
-awk '{ print $10-1433401450000" "$12 }' receivedUpdate.log > feedback-processed.log
+awk -v baseTime=${BASE_TIME} '{ print $10-baseTime" "$12 }' receivedUpdate.log > feedback-processed.log
 ```
 
 ## Plots
@@ -102,5 +121,9 @@ set y2range [0:]
 set y2tics
 set yrange [0:]
 set boxwidth 1500 absolute
+plot "execution-processed.log" using 1:3 with boxes title "delay + processing, at result time", "" using 2:3 with boxes title "delay + processing, at batch time", "" using 2:4 axes x1y2 with line title "# of items processed per batch", "memory-processed.log" using 1:($3/10) with lines title "free memory", "feedback-processed.log" using 1:($2 * 25) axes x1y2 with lines title "Spark streaming processing bound"
+
+
 plot "execution-processed.log" using 1:2 with boxes title "delay + processing", "" using 1:3 axes x1y2 with line title "# of items processed per batch", "memory-processed.log" using 1:($3/10) with lines title "free memory", "feedback-processed.log" using 1:($2 * 25) axes x1y2 with lines title "Spark streaming processing bound"
 ```
+
