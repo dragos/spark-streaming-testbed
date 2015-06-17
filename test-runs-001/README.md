@@ -8,9 +8,15 @@ __For setup and all other details, look below__
 
 ## streaming back pressure branch, TCP receiver, congestion strategy: ignore
 
-![streaming back pressure branch, TCP receiver, congestion strategy: sampling](streaming-t004-7-50000/graph.png)
+![streaming back pressure branch, TCP receiver, congestion strategy: ignore](streaming-t004-7-50000-ignore/graph.png)
+
+## streaming back pressure branch, TCP receiver, congestion strategy: drop
+
+![streaming back pressure branch, TCP receiver, congestion strategy: drop](streaming-t004-7-50000-drop/graph.png)
 
 ## streaming back pressure branch, TCP receiver, congestion strategy: sampling
+
+![streaming back pressure branch, TCP receiver, congestion strategy: sampling](streaming-t004-7-50000-sampling/graph.png)
 
 ## streaming back pressure branch, TCP receiver, congestion strategy: pushback
 
@@ -95,7 +101,7 @@ __TODO: fix the script to use the min timestamp__
 # extract the intresting lines
 grep $'\t7\t' run.log > execution.log
 # find the earliest timestamp
-BASE_TIME=$(head -1 execution.log | awk '{print $2qq}')
+BASE_TIME=$(head -1 execution.log | awk '{print $2}')
 # shift the time, and keep only the interesting columns
 awk -v baseTime=${BASE_TIME} -F '\t' '{print $1-baseTime"\t"$2-baseTime"\t"$1-$2"\t"$4;}' execution.log > execution-processed.log
 ```
@@ -104,12 +110,12 @@ awk -v baseTime=${BASE_TIME} -F '\t' '{print $1-baseTime"\t"$2-baseTime"\t"$1-$2
 # extract the intresting lines
 grep 'Added input' run.log > memory.log
 # shift the time and normalize the memory numbers (to KB).
-awk -v baseTime=${BASE_TIME} -F '[\)\, -]' '{ if ($15 == "MB") { a = $14 * 1024} else {a = $14}; if ($19 == "MB") { b = $18 * 1024 } else { b = $18 }; print $8-baseTime"\t"a"\t"b;}' memory.log > memory-processed.log
+awk -v baseTime=${BASE_TIME} -F '[\)\, -]' '{ if ($18 == "MB") { a = $17 * 1024} else {a = $17}; if ($22 == "MB") { b = $21 * 1024 } else { b = $21 }; print $11-baseTime"\t"a"\t"b;}' memory.log > memory-processed.log
 ```
 
 ```bash
 grep 'Received update' SPARK_HOME/work/app-xxxxxxxxxxxx-000x/x/stdout > feedback.log
-awk -v baseTime=${BASE_TIME} '{ print $10-baseTime" "$12 }' receivedUpdate.log > feedback-processed.log
+awk -v baseTime=${BASE_TIME} '{ cmd = "date --date=\""$1" "$2"\" +%s%3N"; cmd | getline a ; print a - baseTime,$10 - baseTime,$12 }' feedback.log > feedback-processed.log
 ```
 
 ## Plots
@@ -121,9 +127,11 @@ set y2range [0:]
 set y2tics
 set yrange [0:]
 set boxwidth 1500 absolute
-plot "execution-processed.log" using 1:3 with boxes title "delay + processing, at result time", "" using 2:3 with boxes title "delay + processing, at batch time", "" using 2:4 axes x1y2 with line title "# of items processed per batch", "memory-processed.log" using 1:($3/10) with lines title "free memory", "feedback-processed.log" using 1:($2 * 25) axes x1y2 with lines title "Spark streaming processing bound"
+set style arrow 1 nohead ls 1
 
+set terminal png size 2000,1000
+set output "graph.png"
 
-plot "execution-processed.log" using 1:2 with boxes title "delay + processing", "" using 1:3 axes x1y2 with line title "# of items processed per batch", "memory-processed.log" using 1:($3/10) with lines title "free memory", "feedback-processed.log" using 1:($2 * 25) axes x1y2 with lines title "Spark streaming processing bound"
+plot "execution-processed.log" using 2:(0):($1-$2):3 with vector title "delay + processing, at result time" arrowstyle 1, "" using 2:4 axes x1y2 with line title "# of items processed per batch", "memory-processed.log" using 1:($3/10) with lines title "free memory", "feedback-processed.log" using 1:($3 * 25) axes x1y2 with lines title "feedback bound"
 ```
 
